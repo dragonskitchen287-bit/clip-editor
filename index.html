@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PixelProTech Auto Clip Editor</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#2b1608">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Clip Editor">
+<style>
+:root{--bg:#f8f4f1;--card:#fff;--ink:#2a1b12;--mute:#6f5f55;--line:#e3d9d1;--acc:#c2410c;--accink:#fff;--ok:#157a4a;--bad:#b83232;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#17100b;--card:#221810;--ink:#f3ebe5;--mute:#b3a398;--line:#3b2c20;--acc:#ff8a4c;--accink:#17100b;--ok:#5fd397;--bad:#ff8585;color-scheme:dark}}
+*,*:before,*:after{box-sizing:inherit}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.5rem;margin:0 0 4px}h2{font-size:1.05rem;margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 20px;max-width:62ch}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+label{display:block;font-weight:600;font-size:.9rem;margin:0 0 4px}
+select,input,textarea{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+input[type=range]{padding:0}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.note{color:var(--mute);font-size:.85rem}
+.btn{display:inline-block;font:inherit;font-weight:600;border:1px solid var(--acc);background:var(--acc);color:var(--accink);border-radius:6px;padding:8px 14px;cursor:pointer;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--acc)}
+.btn.sm{padding:5px 10px;font-size:.88rem}
+.btn[disabled]{opacity:.5;cursor:default}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+video#vid{width:100%;max-height:360px;background:#000;border-radius:8px;margin-top:12px}
+canvas#cv{display:none;max-height:300px;max-width:100%;margin-top:12px;border-radius:8px;background:#000}
+.clip{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.clip.off{opacity:.55}
+.ch{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ch b{flex:1 1 140px}
+.ch label{display:flex;gap:6px;align-items:center;margin:0;font-weight:400}
+.ch input[type=checkbox]{width:auto}
+.tm{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.tm div{flex:1 1 110px}
+.st{margin-top:8px;font-size:.88rem;color:var(--mute)}
+.st a,.st button{margin-right:8px}
+.plat{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+</style>
+</head>
+<body>
+<main>
+<h1>Auto Clip Editor</h1>
+<p class="sub">Turn a long video into short, ready-to-post clips. The app finds the most energetic moments, crops them for vertical or square, and exports them. Your video never leaves your device.</p>
+
+<section>
+<h2>1. Choose your video</h2>
+<input id="file" type="file" accept="video/*">
+<video id="vid" controls playsinline hidden></video>
+<p class="note" id="info"></p>
+</section>
+
+<section>
+<h2>2. Settings</h2>
+<div class="grid">
+<div><label for="len">Clip length</label><select id="len"><option>15</option><option>30</option><option selected>45</option><option>60</option><option>90</option></select></div>
+<div><label for="cnt">Number of clips</label><select id="cnt"><option>3</option><option selected>5</option><option>8</option><option>10</option></select></div>
+<div><label for="asp">Format</label><select id="asp"><option value="9:16" selected>Vertical 9:16 (Shorts, Reels, TikTok)</option><option value="1:1">Square 1:1</option><option value="16:9">Landscape 16:9</option></select></div>
+<div><label for="pos">Crop position (left to right)</label><input id="pos" type="range" min="0" max="100" value="50"></div>
+</div>
+<div style="margin-top:12px"><label for="ttl">Title text on video (optional)</label><input id="ttl" maxlength="60" placeholder="e.g. Watch this!"></div>
+<div class="actions"><button class="btn" id="find" type="button" disabled>Find best moments</button><span class="note" id="msg" aria-live="polite"></span></div>
+</section>
+
+<section id="cs" hidden>
+<h2>3. Your clips</h2>
+<p class="note">Adjust start and end times if you like, untick clips you don’t want, then export. Keep this tab open and visible while exporting, because clips are recorded in real time.</p>
+<div id="list"></div>
+<div class="actions"><button class="btn" id="exp" type="button">Export selected clips</button><button class="btn ghost" id="stop" type="button" hidden>Cancel</button></div>
+<canvas id="cv"></canvas>
+</section>
+
+<section>
+<h2>4. Post online</h2>
+<p class="note">Sites only accept posts from your own logged-in account, so finish by picking the exported file there. On a phone, use each clip’s Share button to send it straight to the YouTube, Instagram or TikTok app.</p>
+<label for="cap" style="margin-top:10px">Caption and hashtags</label>
+<textarea id="cap" rows="3" placeholder="Write your caption once, then copy it"></textarea>
+<div class="plat"><button class="btn ghost sm" id="cc" type="button">Copy caption</button>
+<a class="btn ghost sm" href="https://www.youtube.com/upload" target="_blank" rel="noopener">YouTube Shorts</a>
+<a class="btn ghost sm" href="https://www.tiktok.com/upload" target="_blank" rel="noopener">TikTok</a>
+<a class="btn ghost sm" href="https://www.instagram.com/" target="_blank" rel="noopener">Instagram</a>
+<a class="btn ghost sm" href="https://www.facebook.com/reels/create" target="_blank" rel="noopener">Facebook Reels</a></div>
+</section>
+<p class="note">Only upload videos you own or have permission to use. Clips download as MP4 when your browser supports it (recent Chrome, Edge and Safari); otherwise as WebM, which you can convert for sites that need MP4.</p>
+</main>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var V=$("vid"),file=null,dur=0,clips=[],ctx=null,gOut=null,adest=null,pvEnd=null,cancel=false,busy=false;
+function msg(t){$("msg").textContent=t}
+function fmt(t){t=Math.max(0,t);var m=Math.floor(t/60),s=Math.floor(t%60);return m+":"+(s<10?"0":"")+s}
+$("file").onchange=function(){
+  file=this.files[0];if(!file)return;
+  if(V.src)URL.revokeObjectURL(V.src);
+  V.src=URL.createObjectURL(file);V.hidden=false;clips=[];$("cs").hidden=true;$("find").disabled=true;$("info").textContent="Loading…";
+};
+V.onloadedmetadata=function(){dur=V.duration;$("find").disabled=false;$("info").textContent=file.name+" · "+fmt(dur)+" · "+V.videoWidth+"×"+V.videoHeight+" · "+(file.size/1048576).toFixed(0)+" MB"};
+V.onerror=function(){$("info").textContent="This browser can’t play that file. Try an MP4 (H.264) video."};
+V.ontimeupdate=function(){if(pvEnd!==null&&V.currentTime>=pvEnd){V.pause();pvEnd=null}};
+$("find").onclick=async function(){
+  var L=Math.min(+$("len").value,Math.floor(dur)),N=+$("cnt").value,bins=null,AC=window.AudioContext||window.webkitAudioContext;
+  $("find").disabled=true;msg("Listening for the best moments…");
+  try{
+    if(file.size>700e6)throw 0;
+    var c=new AC(),buf=await c.decodeAudioData(await file.arrayBuffer());c.close();
+    var ch=buf.getChannelData(0),sr=buf.sampleRate,n=Math.floor(buf.duration);bins=new Float64Array(n);
+    for(var i=0;i<n;i++){var s=0,a=i*sr,b=Math.min(a+sr,ch.length),k=0;for(var j=a;j<b;j+=4){s+=ch[j]*ch[j];k++}bins[i]=k?Math.sqrt(s/k):0}
+  }catch(e){bins=null}
+  var starts=[];
+  if(dur<=L+1){starts=[0];L=Math.floor(dur)}
+  else if(bins&&bins.length>L){
+    var P=[0];for(var q=0;q<bins.length;q++)P.push(P[q]+bins[q]);
+    var win=[];for(var w=0;w+L<=bins.length;w++)win.push(P[w+L]-P[w]);
+    var used=new Array(win.length).fill(false);
+    for(var t=0;t<N;t++){var bi=-1,bv=1e-9;
+      for(var x=0;x<win.length;x++)if(!used[x]&&win[x]>bv){bv=win[x];bi=x}
+      if(bi<0)break;starts.push(bi);
+      for(var y=Math.max(0,bi-L+1);y<Math.min(win.length,bi+L);y++)used[y]=true}
+    starts.sort(function(a,b){return a-b});
+    msg("Picked the loudest, most active moments.");
+  }
+  if(!starts.length){
+    for(var z=0;z<N;z++)starts.push(N===1?(dur-L)/2:z*(dur-L)/(N-1));
+    msg("Could not analyse the audio, so clips are evenly spaced. You can adjust them.");
+  }
+  clips=starts.map(function(s){return{s:Math.floor(s),e:Math.min(dur,Math.floor(s)+L),on:true,url:null,blob:null,type:""}});
+  render();$("cs").hidden=false;$("find").disabled=false;
+  $("cs").scrollIntoView({behavior:"smooth"});
+};
+function render(){
+  var box=$("list");box.innerHTML="";
+  clips.forEach(function(c,i){
+    var d=document.createElement("div");d.className="clip"+(c.on?"":" off");d.dataset.i=i;
+    d.innerHTML='<div class="ch"><b></b><button class="btn ghost sm" data-a="pv" type="button">Preview</button><label><input type="checkbox" data-a="on"'+(c.on?" checked":"")+'>Export</label></div>'+
+      '<div class="tm"><div><label>Start (seconds)</label><input type="number" data-a="s" min="0" step="0.5"></div><div><label>End (seconds)</label><input type="number" data-a="e" min="0" step="0.5"></div></div><div class="st"></div>';
+    d.querySelector("b").textContent="Clip "+(i+1)+" · "+fmt(c.s)+"–"+fmt(c.e)+" ("+Math.round(c.e-c.s)+"s)";
+    d.querySelector('[data-a=s]').value=c.s;d.querySelector('[data-a=e]').value=c.e;
+    box.appendChild(d);setStatus(i);
+  });
+}
+function setStatus(i,txt){
+  var st=$("list").children[i].querySelector(".st"),c=clips[i];st.textContent="";
+  if(txt){st.textContent=txt;return}
+  if(!c.blob)return;
+  var a=document.createElement("a");a.className="btn sm";a.href=c.url;a.download=name(i);a.textContent="Download";st.appendChild(a);
+  if(navigator.canShare){var b=document.createElement("button");b.type="button";b.className="btn ghost sm";b.textContent="Share";b.onclick=function(){share(i)};st.appendChild(b)}
+  st.appendChild(document.createTextNode((c.blob.size/1048576).toFixed(1)+" MB · "+(c.type.indexOf("mp4")>-1?"MP4":"WebM")));
+}
+function name(i){var base=file.name.replace(/\.[^.]+$/,"").replace(/[^\w\-]+/g,"_");return base+"_clip"+(i+1)+(clips[i].type.indexOf("mp4")>-1?".mp4":".webm")}
+async function share(i){
+  var c=clips[i],f=new File([c.blob],name(i),{type:c.type});
+  try{if(navigator.canShare({files:[f]}))await navigator.share({files:[f],text:$("cap").value});else alert("Sharing files is not supported here. Download the clip and upload it on the site.")}catch(e){}
+}
+$("list").onclick=function(e){
+  var t=e.target,a=t.dataset.a;if(a!=="pv")return;
+  var i=+t.closest(".clip").dataset.i,c=clips[i];
+  V.currentTime=c.s;pvEnd=c.e;V.play();V.scrollIntoView({behavior:"smooth",block:"center"});
+};
+$("list").onchange=function(e){
+  var t=e.target,a=t.dataset.a;if(!a)return;
+  var i=+t.closest(".clip").dataset.i,c=clips[i];
+  if(a==="on")c.on=t.checked;
+  else{var v=Math.max(0,Math.min(dur,parseFloat(t.value)||0));c[a]=v;if(c.e<=c.s+1){if(a==="s")c.e=Math.min(dur,c.s+1);else c.s=Math.max(0,c.e-1)}}
+  if(c.blob){URL.revokeObjectURL(c.url);c.blob=null;c.url=null}
+  var keep=$("list").scrollTop;render();
+};
+function mime(){var l=["video/mp4;codecs=avc1.42E01E,mp4a.40.2","video/mp4","video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
+  if(!window.MediaRecorder)return null;for(var i=0;i<l.length;i++)if(MediaRecorder.isTypeSupported(l[i]))return l[i];return ""}
+function audio(){
+  if(!ctx){var AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();var src=ctx.createMediaElementSource(V);
+    adest=ctx.createMediaStreamDestination();gOut=ctx.createGain();src.connect(adest);src.connect(gOut);gOut.connect(ctx.destination)}
+  if(ctx.state==="suspended")ctx.resume();
+}
+function seek(t){return new Promise(function(r){if(Math.abs(V.currentTime-t)<.05)return r();var d=setTimeout(r,2000);V.addEventListener("seeked",function f(){clearTimeout(d);V.removeEventListener("seeked",f);r()});V.currentTime=t})}
+async function exportClip(i,k,n){
+  var c=clips[i],asp=$("asp").value,W=720,H=asp==="9:16"?1280:asp==="1:1"?720:405*1.0;
+  if(asp==="16:9"){W=1280;H=720}
+  var cv=$("cv"),g=cv.getContext("2d");cv.width=W;cv.height=H;cv.style.display="block";
+  var vw=V.videoWidth,vh=V.videoHeight,tr=W/H,sr=vw/vh,sw,sh,sx,sy,pos=$("pos").value/100;
+  if(sr>tr){sh=vh;sw=vh*tr;sx=(vw-sw)*pos;sy=0}else{sw=vw;sh=vw/tr;sx=0;sy=(vh-sh)*.5}
+  var mt=mime();if(mt===null)throw new Error("This browser cannot record video. Use recent Chrome, Edge or Safari.");
+  audio();gOut.gain.value=0;pvEnd=null;V.pause();
+  var stream=cv.captureStream(30);adest.stream.getAudioTracks().forEach(function(t){stream.addTrack(t)});
+  var rec=new MediaRecorder(stream,mt?{mimeType:mt,videoBitsPerSecond:5e6}:{videoBitsPerSecond:5e6}),chunks=[];
+  rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data)};
+  await seek(c.s);
+  var ttl=$("ttl").value.trim();
+  await new Promise(function(done){
+    rec.onstop=done;
+    function draw(){
+      g.drawImage(V,sx,sy,sw,sh,0,0,W,H);
+      if(ttl){var fs=Math.round(W*.065);g.font="700 "+fs+"px Segoe UI,system-ui,sans-serif";g.textAlign="center";g.lineJoin="round";g.lineWidth=fs*.2;g.strokeStyle="rgba(0,0,0,.85)";g.fillStyle="#fff";
+        var y=asp==="16:9"?H-fs:H*.14;g.strokeText(ttl,W/2,y,W*.92);g.fillText(ttl,W/2,y,W*.92)}
+      setStatus(i,"Exporting clip "+k+" of "+n+" · "+Math.max(0,V.currentTime-c.s).toFixed(0)+"s of "+Math.round(c.e-c.s)+"s");
+      if(cancel||V.currentTime>=c.e||V.ended){V.pause();if(rec.state!=="inactive")rec.stop();return}
+      requestAnimationFrame(draw);
+    }
+    rec.start(500);V.play().then(draw).catch(function(){rec.stop()});
+  });
+  gOut.gain.value=1;
+  if(cancel){setStatus(i,"Cancelled");return}
+  c.type=rec.mimeType||mt||"video/webm";c.blob=new Blob(chunks,{type:c.type});
+  if(c.url)URL.revokeObjectURL(c.url);c.url=URL.createObjectURL(c.blob);setStatus(i);
+}
+$("exp").onclick=async function(){
+  if(busy)return;var idx=[];clips.forEach(function(c,i){if(c.on)idx.push(i)});
+  if(!idx.length){msg("Tick at least one clip to export.");return}
+  busy=true;cancel=false;$("exp").disabled=true;$("stop").hidden=false;
+  try{for(var k=0;k<idx.length&&!cancel;k++)await exportClip(idx[k],k+1,idx.length);msg(cancel?"Export cancelled.":"Done. Download or share your clips below each card.")}
+  catch(e){msg("Export failed: "+e.message)}
+  $("cv").style.display="none";$("exp").disabled=false;$("stop").hidden=true;busy=false;
+};
+$("stop").onclick=function(){cancel=true};
+$("cc").onclick=function(){var t=$("cap").value;if(!t){msg("Write a caption first.");return}
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){msg("Caption copied.")},function(){window.prompt("Copy this:",t)})};
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("service-worker.js").catch(function(){})})}
+})();
+</script>
+</body>
+</html>
